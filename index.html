@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRIO — 3-Player Card Game</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f0e17;--sur:#1a1927;--sur2:#222136;--bdr:rgba(255,255,255,.08);--txt:#fffffe;--muted:rgba(255,255,255,.45);--red:#e63946;--blue:#4d96ff;--green:#6bcb77;--yellow:#ffd93d;--wild:#9b5de5;--a1:#ff6b6b;--a2:#ffd93d;--a3:#6bcb77;--cw:64px;--ch:90px}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden}
+.screen{display:none;min-height:100vh;flex-direction:column}.screen.active{display:flex}
+#lobby{align-items:center;justify-content:center;padding:2rem;gap:1.75rem;background:radial-gradient(ellipse at 50% 0%,#2a1a4a,var(--bg) 70%)}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:72px;letter-spacing:4px;line-height:1;background:linear-gradient(135deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center}
+.tagline{color:var(--muted);font-size:13px;letter-spacing:3px;text-transform:uppercase;text-align:center;margin-top:-.75rem}
+.box{background:var(--sur);border:1px solid var(--bdr);border-radius:20px;padding:1.75rem;width:100%;max-width:420px;display:flex;flex-direction:column;gap:1.2rem}
+.box h2{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--muted)}
+.lbl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+input{width:100%;background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:16px;padding:12px 16px;outline:none;transition:border-color .2s}
+input:focus{border-color:rgba(255,255,255,.3)}
+input.code{text-transform:uppercase;letter-spacing:4px;font-size:18px}
+.btn{width:100%;padding:14px;border-radius:12px;border:none;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer;transition:transform .15s,opacity .15s}
+.btn:hover{transform:translateY(-1px);opacity:.92}.btn:active{transform:scale(.98)}.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+.btn-p{background:linear-gradient(135deg,#ff6b6b,#ff9f43);color:#fff}
+.btn-s{background:var(--sur2);color:var(--txt);border:1px solid var(--bdr)}
+.div{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px}
+.div::before,.div::after{content:'';flex:1;height:1px;background:var(--bdr)}
+.err{color:var(--a1);font-size:13px;text-align:center}.ok{color:var(--a3);font-size:13px;text-align:center}
+#waiting{align-items:center;justify-content:center;padding:2rem;gap:1.5rem;background:radial-gradient(ellipse at 50% 0%,#1a2a4a,var(--bg) 70%)}
+.rbox{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;padding:1.5rem 2rem;text-align:center;width:100%;max-width:420px}
+.bigcode{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:8px;color:var(--a2)}
+.plist{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;padding:1.25rem;width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px}
+.pslot{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:var(--sur2);font-size:14px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}.dot.on{background:var(--a3);box-shadow:0 0 8px var(--a3)}.dot.off{background:rgba(255,255,255,.15);animation:pulse 1.5s infinite}
+#game{background:var(--bg)}
+.gh{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--sur);border-bottom:1px solid var(--bdr)}
+.glogo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;background:linear-gradient(135deg,#ff6b6b,#ffd93d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.tbadge{background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.tbadge.mine{background:rgba(107,203,119,.15);border-color:var(--a3);color:var(--a3);animation:glow 1.5s infinite}
+.opps{display:flex;gap:10px;padding:12px 14px;overflow-x:auto}
+.opp{background:var(--sur);border:1px solid var(--bdr);border-radius:14px;padding:10px 14px;flex:1;min-width:0}
+.opp.act{border-color:var(--a2);box-shadow:0 0 14px rgba(255,217,61,.2)}
+.oname{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.ocards{display:flex;gap:3px;flex-wrap:wrap}
+.cback{width:28px;height:40px;border-radius:5px;background:linear-gradient(135deg,#2d2b55,#3d3b6d);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:12px}
+.tarea{display:flex;align-items:center;justify-content:center;gap:28px;padding:14px;background:radial-gradient(ellipse at center,#1a1730,var(--bg));min-height:150px}
+.pwrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.plbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.card{width:var(--cw);height:var(--ch);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;cursor:pointer;transition:transform .15s,box-shadow .15s;border:2px solid rgba(255,255,255,.15);user-select:none;flex-shrink:0}
+.card:hover{transform:translateY(-4px)}
+.card .cn{font-family:'Bebas Neue',sans-serif;font-size:28px;line-height:1}.card .cs{font-size:20px;line-height:1}
+.card .ct{position:absolute;top:5px;left:7px;font-family:'Bebas Neue',sans-serif;font-size:13px;line-height:1}
+.card .cb{position:absolute;bottom:5px;right:7px;font-family:'Bebas Neue',sans-serif;font-size:13px;line-height:1;transform:rotate(180deg)}
+.card.red{background:var(--red)}.card.blue{background:var(--blue)}.card.green{background:var(--green);color:#0f0e17}.card.yellow{background:var(--yellow);color:#0f0e17}
+.card.wild{background:linear-gradient(135deg,var(--red) 0%,var(--yellow) 33%,var(--green) 66%,var(--blue) 100%)}
+.card.dp{cursor:pointer;background:linear-gradient(135deg,#2d2b55,#3d3b6d);border-color:rgba(255,255,255,.12)}
+.card.dp:hover{box-shadow:0 0 14px rgba(155,93,229,.5)}
+.card.play{box-shadow:0 0 18px 4px rgba(255,255,255,.35);border-color:rgba(255,255,255,.7)}
+.card.play:hover{transform:translateY(-10px) scale(1.07)}
+.card.dim{opacity:.35;cursor:default}.card.dim:hover{transform:none}
+.hcard{animation:pop .22s ease}
+.glog{padding:8px 16px;max-height:72px;overflow-y:auto;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--bdr)}
+.ll{animation:slideup .2s ease}.ll.hi{color:var(--a2)}
+.harea{padding:12px 16px;background:var(--sur);border-top:1px solid var(--bdr)}
+.hh{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.hlbl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.unobtn{background:linear-gradient(135deg,#ff6b6b,#ff9f43);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#fff;padding:5px 16px;cursor:pointer;transition:transform .15s;display:none}
+.unobtn:hover{transform:scale(1.06)}.unobtn.show{display:block}
+.hcards{display:flex;flex-wrap:wrap;gap:8px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(4px)}
+.ov.show{display:flex}
+.cpick{background:var(--sur);border:1px solid var(--bdr);border-radius:20px;padding:2rem;text-align:center}
+.cpick h3{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:1.25rem}
+.copts{display:flex;gap:12px}
+.copt{width:60px;height:60px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s,border-color .15s}
+.copt:hover{transform:scale(1.15);border-color:rgba(255,255,255,.5)}
+.copt.r{background:var(--red)}.copt.b{background:var(--blue)}.copt.g{background:var(--green)}.copt.y{background:var(--yellow)}
+.wov{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:1.5rem;text-align:center;padding:2rem}
+.wov.show{display:flex}
+.wcrown{font-size:64px;animation:pop .5s ease}.wtitle{font-family:'Bebas Neue',sans-serif;font-size:48px;letter-spacing:4px;color:var(--a2);animation:slideup .4s ease .1s both}.wsub{color:var(--muted);font-size:16px;animation:slideup .4s ease .2s both}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes glow{0%,100%{box-shadow:0 0 8px currentColor}50%{box-shadow:0 0 22px currentColor}}
+@keyframes pop{0%{transform:scale(.8) translateY(10px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+@keyframes slideup{0%{transform:translateY(18px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style>
+</head>
+<body>
+
+<div id="lobby" class="screen active">
+  <div class="logo">TRIO</div>
+  <div class="tagline">3-player card game · peer-to-peer</div>
+  <div class="box">
+    <h2>Get started</h2>
+    <div><div class="lbl">Your name</div><input id="pname" type="text" placeholder="Enter your name" maxlength="16"></div>
+    <button class="btn btn-p" onclick="createRoom()">Create new room</button>
+    <div class="div">or join existing</div>
+    <div><div class="lbl">Room code</div><input id="rcode" class="code" type="text" placeholder="Paste code here" maxlength="36"></div>
+    <button class="btn btn-s" onclick="joinRoom()">Join room</button>
+    <div id="lerr" class="err" style="display:none"></div>
+    <div id="lok" class="ok" style="display:none"></div>
+  </div>
+</div>
+
+<div id="waiting" class="screen">
+  <div style="padding:1.5rem;text-align:center"><div class="logo" style="font-size:40px">TRIO</div><div class="tagline">waiting room</div></div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:1.25rem;padding:0 1.5rem 2rem">
+    <div class="rbox">
+      <div class="lbl">Share this link with your coworkers</div>
+      <div class="bigcode" id="dcode" style="font-size:14px;letter-spacing:1px;word-break:break-all;padding:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:1rem;flex-wrap:wrap">
+        <button class="btn btn-p" style="width:auto;padding:10px 24px;font-size:16px" onclick="copyLink()" id="copyLinkBtn">📋 Copy invite link</button>
+      </div>
+    </div>
+    <div class="plist" id="plist"></div>
+    <div id="startWrap" style="width:100%;max-width:420px;display:none">
+      <button class="btn btn-p" onclick="hostStartGame()">▶ Start Game — 3 players ready!</button>
+    </div>
+    <div class="ok" id="wmsg">Waiting for players…</div>
+  </div>
+</div>
+
+<div id="game" class="screen">
+  <div class="gh">
+    <div class="glogo">TRIO</div>
+    <div class="tbadge" id="tbadge">—</div>
+    <div style="font-size:13px;color:var(--muted)" id="disp">→</div>
+  </div>
+  <div class="opps" id="opps"></div>
+  <div class="tarea">
+    <div class="pwrap"><div class="plbl">Draw pile</div>
+      <div class="card dp" id="dpile" onclick="drawCard()">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:rgba(255,255,255,.22)">TRIO</span>
+      </div>
+    </div>
+    <div class="pwrap"><div class="plbl">Discard</div><div id="tcard"></div></div>
+  </div>
+  <div class="glog" id="glog"></div>
+  <div class="harea">
+    <div class="hh">
+      <div class="hlbl">Your hand (<span id="hcount">0</span>)</div>
+      <button class="unobtn" id="unobtn" onclick="callUno()">UNO! 🃏</button>
+    </div>
+    <div class="hcards" id="hcards"></div>
+  </div>
+</div>
+
+<div class="ov" id="cov">
+  <div class="cpick">
+    <h3>Choose a color</h3>
+    <div class="copts">
+      <div class="copt r" onclick="pickColor('red')"></div>
+      <div class="copt b" onclick="pickColor('blue')"></div>
+      <div class="copt g" onclick="pickColor('green')"></div>
+      <div class="copt y" onclick="pickColor('yellow')"></div>
+    </div>
+  </div>
+</div>
+
+<div class="wov" id="wov">
+  <div class="wcrown">👑</div>
+  <div class="wtitle" id="wtitle">— wins!</div>
+  <div class="wsub">First to empty their hand!</div>
+  <button class="btn btn-p" style="max-width:260px;margin-top:.5rem" onclick="location.reload()">Play again</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// TRIO — P2P multiplayer via PeerJS
+// Host holds authoritative state, guests send actions
+// ═══════════════════════════════════════════════
+
+let peer=null, connections=[], hostConn=null;
+let isHost=false, myName='', myId='', roomCode='';
+let GS=null, pendingWild=null;
+
+function $(i){return document.getElementById(i)}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active')}
+function showErr(m){const e=$('lerr');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',4000)}
+function showOk(m){const e=$('lok');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',4000)}
+
+// ── DECK ─────────────────────────────────────
+const COLORS=['red','blue','green','yellow'],SPECS=['skip','reverse','draw2'];
+function buildDeck(){
+  const d=[];let i=0;
+  COLORS.forEach(c=>{
+    d.push({id:i++,color:c,value:'0',display:'0'});
+    [1,2,3,4,5,6,7,8,9].forEach(n=>{d.push({id:i++,color:c,value:''+n,display:''+n});d.push({id:i++,color:c,value:''+n,display:''+n});});
+    SPECS.forEach(s=>{const di=s==='skip'?'⊘':s==='reverse'?'↺':'+2';d.push({id:i++,color:c,value:s,display:di});d.push({id:i++,color:c,value:s,display:di});});
+  });
+  for(let j=0;j<4;j++){d.push({id:i++,color:'wild',value:'wild',display:'W'});d.push({id:i++,color:'wild',value:'wild+4',display:'+4'});}
+  return d;
+}
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+function canPlay(card,top,cc){if(card.color==='wild')return true;const c=cc||top.color;return card.color===c||card.value===top.value;}
+
+// ── PEER INIT ─────────────────────────────────
+function initPeer(id,cb){
+  peer=new Peer(id||undefined,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
+  peer.on('open',pid=>{myId=pid;cb(pid);});
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id')showErr('ID taken, retrying…');
+    else showErr('Connection error: '+e.message);
+  });
+}
+
+// ── CREATE ROOM ───────────────────────────────
+function createRoom(){
+  myName=$('pname').value.trim();
+  if(!myName){showErr('Enter your name');return;}
+  isHost=true;showOk('⏳ Starting…');
+  initPeer(null,pid=>{
+    roomCode=pid;
+    peer.on('connection',conn=>{
+      conn.on('open',()=>onGuestConnect(conn));
+      conn.on('data',msg=>onHostReceive(conn,msg));
+      conn.on('close',()=>onGuestLeave(conn));
+    });
+    GS={players:[{id:myId,name:myName,hand:[]}],status:'waiting',deck:[],discard:[],currentColor:null,currentIdx:0,direction:1,log:[]};
+    showScreen('waiting');
+    updateInviteLink();
+    renderWaiting();
+  });
+}
+
+// ── JOIN ROOM ─────────────────────────────────
+function joinRoom(){
+  myName=$('pname').value.trim();
+  let code=$('rcode').value.trim();
+  // Support pasting full URL — extract peer ID from ?join= param
+  try{const u=new URL(code);code=u.searchParams.get('join')||code;}catch(e){}
+  if(!myName){showErr('Enter your name');return;}
+  if(!code){showErr('Enter or paste the invite link');return;}
+  isHost=false;roomCode=code;showOk('⏳ Connecting…');
+  initPeer(null,pid=>{
+    myId=pid;
+    hostConn=peer.connect(roomCode,{reliable:true});
+    hostConn.on('open',()=>hostConn.send({type:'JOIN',name:myName,id:myId}));
+    hostConn.on('data',msg=>onGuestReceive(msg));
+    hostConn.on('error',e=>showErr('Error: '+e.message));
+    hostConn.on('close',()=>showErr('Disconnected from host'));
+  });
+}
+
+// ── GUEST EVENTS (host side) ──────────────────
+function onGuestConnect(conn){}
+function onHostReceive(conn,msg){
+  if(msg.type==='JOIN'){
+    if(GS.status!=='waiting'){conn.send({type:'ERR',msg:'Game already started'});conn.close();return;}
+    if(GS.players.length>=3){conn.send({type:'ERR',msg:'Room is full (3/3)'});conn.close();return;}
+    conn.guestId=msg.id;conn.guestName=msg.name;
+    connections.push(conn);
+    GS.players.push({id:msg.id,name:msg.name,hand:[]});
+    broadcastState();renderWaiting();
+  }
+  if(msg.type==='ACTION'&&GS.status==='playing')applyAction(msg.action);
+}
+function onGuestLeave(conn){
+  connections=connections.filter(c=>c!==conn);
+  if(GS&&GS.status==='waiting'){GS.players=GS.players.filter(p=>p.id!==conn.guestId);broadcastState();renderWaiting();}
+}
+
+// ── GUEST EVENTS (guest side) ─────────────────
+function onGuestReceive(msg){
+  if(msg.type==='ERR'){showErr(msg.msg);return;}
+  if(msg.type==='STATE')applyView(msg.state);
+}
+
+// ── BROADCAST ─────────────────────────────────
+function broadcastState(){
+  const allIds=[myId,...connections.map(c=>c.guestId)];
+  allIds.forEach(pid=>{
+    const view=buildView(pid);
+    if(pid===myId)applyView(view);
+    else{const conn=connections.find(c=>c.guestId===pid);if(conn&&conn.open)conn.send({type:'STATE',state:view});}
+  });
+}
+function buildView(pid){
+  return{
+    players:GS.players.map(p=>({id:p.id,name:p.name,hand:p.id===pid?p.hand:null,handCount:p.hand.length})),
+    status:GS.status,discard:GS.discard,currentColor:GS.currentColor,
+    currentIdx:GS.currentIdx,direction:GS.direction,log:GS.log,
+    deckCount:GS.deck.length,winner:GS.winner
+  };
+}
+
+// ── APPLY VIEW ────────────────────────────────
+function applyView(view){
+  if(view.status==='waiting'){showScreen('waiting');renderWaiting2(view);}
+  else if(view.status==='playing'){showScreen('game');renderGame(view);}
+  else if(view.status==='ended'){showWinner(view);}
+}
+
+// ── WAITING RENDER ────────────────────────────
+function updateInviteLink(){
+  const url=location.href.split('?')[0]+'?join='+roomCode;
+  $('dcode').textContent=url;
+}
+function renderWaiting(){if(!isHost)return;broadcastState();}
+function renderWaiting2(view){
+  const ps=view.players;
+  const list=$('plist');list.innerHTML='<div class="lbl" style="margin-bottom:4px">Players</div>';
+  for(let i=0;i<3;i++){
+    const p=ps[i];const d=document.createElement('div');d.className='pslot';
+    d.innerHTML=`<div class="dot ${p?'on':'off'}"></div><span>${p?p.name:'Waiting…'}</span>${p&&p.id===myId?'<span style="margin-left:auto;font-size:11px;color:var(--muted)">You</span>':''}`;
+    list.appendChild(d);
+  }
+  const n=ps.length;
+  $('startWrap').style.display=(n===3&&isHost)?'block':'none';
+  $('wmsg').textContent=n===3?(isHost?'All ready — press Start!':'Waiting for host to start…'):`Waiting for ${3-n} more player${3-n>1?'s':''}…`;
+  if(!isHost)updateInviteLink2(view);
+}
+function updateInviteLink2(view){
+  const url=location.href.split('?')[0]+'?join='+roomCode;
+  $('dcode').textContent=url;
+}
+function copyLink(){
+  const url=$('dcode').textContent;
+  navigator.clipboard.writeText(url).catch(()=>{});
+  const b=$('copyLinkBtn');b.textContent='✅ Copied!';setTimeout(()=>b.textContent='📋 Copy invite link',2000);
+}
+
+// ── START GAME ────────────────────────────────
+function hostStartGame(){
+  if(!isHost||GS.players.length<3)return;
+  const deck=shuffle(buildDeck());
+  GS.players.forEach(p=>{p.hand=[];for(let i=0;i<7;i++)p.hand.push(deck.pop());});
+  let first;do{first=deck.pop();}while(first.color==='wild');
+  GS.deck=deck;GS.discard=[first];GS.currentColor=first.color;
+  GS.currentIdx=0;GS.status='playing';GS.direction=1;
+  GS.log=[`🎮 Game started! ${GS.players[0].name} goes first.`];
+  broadcastState();
+}
+
+// ── RENDER GAME ───────────────────────────────
+function renderGame(view){
+  const myP=view.players.find(p=>p.id===myId);if(!myP)return;
+  const cur=view.players[view.currentIdx];
+  const isMyTurn=cur&&cur.id===myId;
+  const top=view.discard[view.discard.length-1];
+  const badge=$('tbadge');
+  badge.textContent=isMyTurn?'Your turn!':`${cur?.name||'?'}'s turn`;
+  badge.className='tbadge'+(isMyTurn?' mine':'');
+  $('disp').textContent=view.direction===1?'→':'←';
+  const oppsEl=$('opps');oppsEl.innerHTML='';
+  view.players.forEach((p,i)=>{
+    if(p.id===myId)return;
+    const isAct=i===view.currentIdx;
+    const d=document.createElement('div');d.className='opp'+(isAct?' act':'');
+    const backs=Array(p.handCount||0).fill('<div class="cback">🂠</div>').join('');
+    d.innerHTML=`<div class="oname">${isAct?'<div style="width:8px;height:8px;border-radius:50%;background:var(--a2)"></div>':''}${p.name} <span style="color:var(--muted);font-size:11px">(${p.handCount||0})</span></div><div class="ocards">${backs}</div>`;
+    oppsEl.appendChild(d);
+  });
+  const tcEl=$('tcard');tcEl.innerHTML='';
+  if(top){const dc={...top,color:top.color==='wild'?(view.currentColor||'wild'):top.color};tcEl.appendChild(mkCard(dc,false,null));}
+  const dp=$('dpile');dp.style.opacity=isMyTurn?'1':'.5';dp.style.pointerEvents=isMyTurn?'auto':'none';
+  const hEl=$('hcards');hEl.innerHTML='';
+  const myHand=myP.hand||[];
+  $('hcount').textContent=myHand.length;
+  myHand.forEach((card,idx)=>{
+    if(!card)return;
+    const pl=isMyTurn&&canPlay(card,top,view.currentColor);
+    const el=mkCard(card,pl,pl?()=>sendPlay(idx):null);
+    if(isMyTurn&&!pl)el.classList.add('dim');
+    el.classList.add('hcard');hEl.appendChild(el);
+  });
+  const ub=$('unobtn');ub.className='unobtn'+(myHand.length===2&&isMyTurn?' show':'');
+  const lg=$('glog');lg.innerHTML='';
+  (view.log||[]).slice(-7).reverse().forEach((msg,i)=>{
+    const d=document.createElement('div');d.className='ll'+(i===0?' hi':'');d.textContent=msg;lg.appendChild(d);
+  });
+}
+
+// ── CARD ELEMENT ──────────────────────────────
+function mkCard(card,playable,onClick){
+  const div=document.createElement('div');
+  const cc=card.color==='wild'?'wild':card.color;
+  div.className='card '+cc+(playable?' play':'');
+  div.innerHTML=`<span class="ct">${card.display}</span><span class="${card.value.match(/^[0-9]$/)? 'cn':'cs'}">${card.display}</span><span class="cb">${card.display}</span>`;
+  if(onClick)div.addEventListener('click',onClick);
+  return div;
+}
+
+// ── ACTIONS ───────────────────────────────────
+function sendPlay(idx){
+  if(isHost)applyAction({type:'PLAY',idx,playerId:myId});
+  else hostConn.send({type:'ACTION',action:{type:'PLAY',idx,playerId:myId}});
+}
+function drawCard(){
+  if(isHost)applyAction({type:'DRAW',playerId:myId});
+  else hostConn.send({type:'ACTION',action:{type:'DRAW',playerId:myId}});
+}
+function callUno(){
+  if(isHost)applyAction({type:'UNO',playerId:myId});
+  else hostConn.send({type:'ACTION',action:{type:'UNO',playerId:myId}});
+}
+function pickColor(c){
+  $('cov').classList.remove('show');
+  if(!pendingWild)return;
+  const action={type:'PLAY',idx:pendingWild.idx,playerId:myId,chosenColor:c};
+  if(isHost)applyAction(action);
+  else hostConn.send({type:'ACTION',action});
+  pendingWild=null;
+}
+
+// ── APPLY ACTION (host only) ──────────────────
+function applyAction(action){
+  if(!isHost)return;
+  const{type,playerId}=action;
+  const pIdx=GS.players.findIndex(p=>p.id===playerId);
+  if(pIdx<0)return;
+  if(GS.currentIdx!==pIdx&&type!=='UNO')return;
+  if(type==='UNO'){
+    const p=GS.players[pIdx];
+    if(p.hand.length===2){GS.log.push(`${p.name} calls UNO! 🃏`);broadcastState();}
+    return;
+  }
+  if(type==='DRAW'){
+    if(!GS.deck.length)reshuffleDeck();
+    if(!GS.deck.length)return;
+    const p=GS.players[pIdx];
+    const drawn=GS.deck.pop();p.hand.push(drawn);
+    const top=GS.discard[GS.discard.length-1];
+    const canP=canPlay(drawn,top,GS.currentColor);
+    GS.log.push(`${p.name} drew a card.`+(canP?' They can play it!':''));
+    if(!canP){const n=GS.players.length;GS.currentIdx=(pIdx+GS.direction+n)%n;}
+    broadcastState();return;
+  }
+  if(type==='PLAY'){
+    const p=GS.players[pIdx];
+    const card=p.hand[action.idx];if(!card)return;
+    const top=GS.discard[GS.discard.length-1];
+    if(!canPlay(card,top,GS.currentColor))return;
+    if(card.color==='wild'&&!action.chosenColor){
+      if(playerId===myId){pendingWild={idx:action.idx};$('cov').classList.add('show');}
+      return;
+    }
+    p.hand.splice(action.idx,1);
+    GS.discard.push(card);
+    GS.currentColor=card.color==='wild'?action.chosenColor:card.color;
+    const n=GS.players.length;
+    let next=(pIdx+GS.direction+n)%n;
+    let log=`${p.name} played ${card.display} (${GS.currentColor})`;
+    if(card.value==='skip'){
+      const skipped=(pIdx+GS.direction+n)%n;
+      log=`${p.name} played ⊘ — ${GS.players[skipped].name} skipped!`;
+      next=(skipped+GS.direction+n)%n;
+    }else if(card.value==='reverse'){
+      GS.direction*=-1;next=(pIdx+GS.direction+n)%n;log+=` — Direction reversed!`;
+    }else if(card.value==='draw2'){
+      const tgt=GS.players[next];if(!GS.deck.length)reshuffleDeck();
+      for(let i=0;i<2;i++)if(GS.deck.length)tgt.hand.push(GS.deck.pop());
+      log+=` — ${tgt.name} draws 2 & is skipped!`;next=(next+GS.direction+n)%n;
+    }else if(card.value==='wild+4'){
+      const tgt=GS.players[next];if(!GS.deck.length)reshuffleDeck();
+      for(let i=0;i<4;i++)if(GS.deck.length)tgt.hand.push(GS.deck.pop());
+      log+=` — ${tgt.name} draws 4 & is skipped!`;next=(next+GS.direction+n)%n;
+    }
+    GS.log.push(log);GS.currentIdx=next;
+    if(p.hand.length===0){GS.status='ended';GS.winner=p.name;GS.log.push(`🏆 ${p.name} wins!`);}
+    if(GS.deck.length<4)reshuffleDeck();
+    broadcastState();
+  }
+}
+function reshuffleDeck(){
+  if(GS.discard.length<2)return;
+  const top=GS.discard.pop();
+  GS.deck.push(...shuffle(GS.discard.splice(0)));
+  GS.discard.push(top);GS.log.push('Deck reshuffled ♻️');
+}
+
+// ── WINNER ────────────────────────────────────
+function showWinner(view){$('wtitle').textContent=`${view.winner} wins! 🎉`;$('wov').classList.add('show');}
+
+// ── DEEP LINK ─────────────────────────────────
+(function(){
+  const p=new URLSearchParams(location.search);
+  const r=p.get('join');
+  if(r){$('rcode').value=r;}
+})();
+</script>
+</body>
+</html>
